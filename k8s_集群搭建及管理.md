@@ -42,6 +42,12 @@
 安装完毕后访问http://10.66.15.110 登录，密码cfg文件中设置的
 成功截图：
 ![](./img/harbor.png)
+
+**使用**
+如果是http方式访问需要在docker的服务文件中的ExecStart 添加 --insecure-registry参数设置不安全源
+![](./img/docker_server.png)
+![](./img/docker_server_conf.png)
+
 ## 使用kubeadm安装k8s v1.11.1集群
 虚拟机至少需要2G内存，每台虚拟机上均安装docker，并下载对应版本的gcr镜像。安装v1.11.1版本镜像版本如下（用docker hub中lucheng事先中转构建的镜像，打包后批量导入）
 ```
@@ -141,6 +147,12 @@ kubectl create secret docker-registry harbor --docker-server=http://10.66.15.110
 
 使用时在pod 的ymal文件中定义serviceAccount 为harbor
 
+## k8s部署应用
+1. 使用docker-compose编排web应用的各个服务并构建docker镜像
+2. push镜像至harbor
+3. k8s新建服务各个组件的deployment，service，已经ingress（ingress需要使用NodePort暴露到控制节点的端口）
+4. 通过master的端口访问服务
+
 ## 使用helm管理k8s应用
 下载helm二进制文件并放至bin目录
 [下载连接(GFW)](https://github.com/helm/helm/releases)
@@ -151,10 +163,20 @@ kubectl create secret docker-registry harbor --docker-server=http://10.66.15.110
 kubectl create serviceaccount --namespace kube-system tiller
 kubectl create clusterrolebinding tiller-cluster-rule --clusterrole=cluster-admin --serviceaccount=kube-system:tiller
 ```
+为tiller设置账号（在安装tiller后）
+```
+kubectl patch deploy --namespace kube-system tiller-deploy -p '{"spec":{"template":{"spec":{"serviceAccount":"tiller"}}}}'
+```
+检查是否授权成功
+```
+$ kubectl get deploy --namespace kube-system   tiller-deploy  --output yaml|grep  serviceAccount
+serviceAccount: tiller
+serviceAccountName: tiller
+```
 
 初始化helm需要安装tiller（GFW），直接docker 导入tiller镜像，或者使用阿里源完成初始化
 * helm init时使用阿里源(推荐)
-> helm init --upgrade -i registry.cn-hangzhou.aliyuncs.com/google_containers/tiller:v2.9.0
+> helm init --upgrade -i registry.cn-hangzhou.aliyuncs.com/google_containers/tiller:v2.9.1 --stable-repo-url https://kubernetes.oss-cn-hangzhou.aliyuncs.com/charts
 
 * 下载gcr.io/kubernetes-helm/tiller:v2.9.0 docker镜像后load
 > docker load -i tiller-2.9.0.tar
